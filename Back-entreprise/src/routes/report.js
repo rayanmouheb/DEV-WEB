@@ -17,21 +17,29 @@ const RECOMMENDATIONS = {
     'Réviser les règles de pare-feu et fermer les ports non nécessaires',
     'Mettre en place des sauvegardes automatiques chiffrées hors site',
     'Former le personnel aux bonnes pratiques de cybersécurité',
-    "Réaliser une analyse de risque complète de l'infrastructure",
   ],
   faible: [
     'Maintenir une veille régulière sur les nouvelles vulnérabilités',
     'Continuer à appliquer les mises à jour de sécurité dès leur disponibilité',
     "Documenter et tester le plan de reprise d'activité (PRA)",
-    'Effectuer des audits de sécurité périodiques',
   ],
   none: ["Ajouter des actifs et des vulnérabilités pour obtenir une analyse de risque"],
 }
 
 router.get('/:company_id', async (req, res) => {
   const { company_id } = req.params
-  const [[company]] = await pool.execute('SELECT * FROM company WHERE id = ?', [company_id])
-  if (!company) return res.status(404).json({ error: 'Entreprise non trouvée' })
+  const [[row]] = await pool.execute('SELECT * FROM Compagny WHERE id = ?', [company_id])
+  if (!row) return res.status(404).json({ error: 'Entreprise non trouvée' })
+
+  const company = {
+    id: row.id,
+    name: row.nom,
+    sector: row.Secteur,
+    employee_count: row.NbEmploye,
+    server_count: row.NbServeur,
+    client_count: row.NbPosteClient,
+    exposed_services: row.Services ? row.Services.split(', ').filter(Boolean) : [],
+  }
 
   const [assetRows] = await pool.execute('SELECT * FROM assets WHERE company_id = ?', [company_id])
   const assets = await Promise.all(
@@ -44,7 +52,7 @@ router.get('/:company_id', async (req, res) => {
   const risk = await computeRisk(company_id)
 
   res.json({
-    company: { ...company, exposed_services: JSON.parse(company.exposed_services) },
+    company,
     assets,
     risk,
     recommendations: RECOMMENDATIONS[risk.level] ?? RECOMMENDATIONS.none,

@@ -1,33 +1,24 @@
 import { Router } from 'express'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import pool from '../database/db.js'
 
 const router = Router()
 const SECRET = process.env.JWT_SECRET ?? 'cybertwin-secret-key-2024'
 
-function makeToken(user) {
-  return jwt.sign({ id: user.id, username: user.username }, SECRET, { expiresIn: '24h' })
-}
+// Utilisateur unique sans base de données
+const ADMIN = { id: 1, username: 'admin', password: bcrypt.hashSync('admin123', 10) }
 
-router.post('/login', async (req, res) => {
+router.post('/login', (req, res) => {
   const { username, password } = req.body
   if (!username || !password) return res.status(400).json({ error: 'username et password requis' })
-  const [[user]] = await pool.execute('SELECT * FROM users WHERE username = ?', [username])
-  if (!user || !bcrypt.compareSync(password, user.password))
+  if (username !== ADMIN.username || !bcrypt.compareSync(password, ADMIN.password))
     return res.status(401).json({ error: 'Identifiants incorrects' })
-  res.json({ token: makeToken(user), username: user.username })
+  const token = jwt.sign({ id: ADMIN.id, username: ADMIN.username }, SECRET, { expiresIn: '24h' })
+  res.json({ token, username: ADMIN.username })
 })
 
-router.post('/register', async (req, res) => {
-  const { username, password } = req.body
-  if (!username || !password) return res.status(400).json({ error: 'username et password requis' })
-  const [[existing]] = await pool.execute('SELECT id FROM users WHERE username = ?', [username])
-  if (existing) return res.status(409).json({ error: "Nom d'utilisateur déjà pris" })
-  const hash = bcrypt.hashSync(password, 10)
-  const [result] = await pool.execute('INSERT INTO users (username, password) VALUES (?,?)', [username, hash])
-  const [[user]] = await pool.execute('SELECT * FROM users WHERE id = ?', [result.insertId])
-  res.status(201).json({ token: makeToken(user), username: user.username })
+router.post('/register', (_req, res) => {
+  res.status(403).json({ error: 'Inscription désactivée' })
 })
 
 router.get('/me', (req, res) => {

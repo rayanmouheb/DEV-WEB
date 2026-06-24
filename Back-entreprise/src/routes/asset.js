@@ -20,8 +20,6 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   const { company_id, name, type, is_internet_exposed } = req.body
   if (!company_id || !name || !type) return res.status(400).json({ error: 'company_id, name et type sont requis' })
-  const validTypes = ['serveur_web', 'base_de_donnees', 'poste_utilisateur', 'routeur', 'pare_feu', 'application_metier']
-  if (!validTypes.includes(type)) return res.status(400).json({ error: 'Type invalide' })
   const [result] = await pool.execute(
     'INSERT INTO assets (company_id, name, type, is_internet_exposed) VALUES (?,?,?,?)',
     [company_id, name, type, is_internet_exposed ? 1 : 0]

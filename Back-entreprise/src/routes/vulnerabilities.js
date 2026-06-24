@@ -26,25 +26,23 @@ router.get('/:id', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const { asset_id, name, description, criticality } = req.body
+  const { asset_id, name, criticality } = req.body
   if (!asset_id || !name || !criticality) return res.status(400).json({ error: 'asset_id, name et criticality sont requis' })
-  const validLevels = ['faible', 'moyen', 'eleve']
-  if (!validLevels.includes(criticality)) return res.status(400).json({ error: 'Criticité invalide (faible, moyen, eleve)' })
   const [result] = await pool.execute(
-    'INSERT INTO vulnerabilities (asset_id, name, description, criticality) VALUES (?,?,?,?)',
-    [asset_id, name, description ?? '', criticality]
+    'INSERT INTO vulnerabilities (asset_id, name, criticality) VALUES (?,?,?)',
+    [asset_id, name, criticality]
   )
   const [[created]] = await pool.execute('SELECT * FROM vulnerabilities WHERE id = ?', [result.insertId])
   res.status(201).json(created)
 })
 
 router.put('/:id', async (req, res) => {
-  const { asset_id, name, description, criticality } = req.body
+  const { asset_id, name, criticality } = req.body
   if (!name || !criticality) return res.status(400).json({ error: 'name et criticality sont requis' })
-  const updates = asset_id
-    ? ['UPDATE vulnerabilities SET asset_id=?, name=?, description=?, criticality=? WHERE id=?', [asset_id, name, description ?? '', criticality, req.params.id]]
-    : ['UPDATE vulnerabilities SET name=?, description=?, criticality=? WHERE id=?', [name, description ?? '', criticality, req.params.id]]
-  const [result] = await pool.execute(...updates)
+  const sql = asset_id
+    ? ['UPDATE vulnerabilities SET asset_id=?, name=?, criticality=? WHERE id=?', [asset_id, name, criticality, req.params.id]]
+    : ['UPDATE vulnerabilities SET name=?, criticality=? WHERE id=?', [name, criticality, req.params.id]]
+  const [result] = await pool.execute(...sql)
   if (result.affectedRows === 0) return res.status(404).json({ error: 'Vulnérabilité non trouvée' })
   const [[updated]] = await pool.execute('SELECT * FROM vulnerabilities WHERE id = ?', [req.params.id])
   res.json(updated)

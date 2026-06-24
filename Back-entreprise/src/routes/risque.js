@@ -41,24 +41,7 @@ router.post('/calculate', async (req, res) => {
   const { company_id } = req.body
   if (!company_id) return res.status(400).json({ error: 'company_id requis' })
   const result = await computeRisk(company_id)
-  await pool.execute(
-    'INSERT INTO risk_history (company_id, score, level, details) VALUES (?,?,?,?)',
-    [company_id, result.score, result.level, JSON.stringify(result)]
-  )
   res.json({ company_id, ...result })
-})
-
-router.get('/history/:company_id', async (req, res) => {
-  const [rows] = await pool.execute(
-    'SELECT * FROM risk_history WHERE company_id = ? ORDER BY created_at DESC LIMIT 20',
-    [req.params.company_id]
-  )
-  res.json(rows)
-})
-
-router.delete('/history/:id', async (req, res) => {
-  await pool.execute('DELETE FROM risk_history WHERE id = ?', [req.params.id])
-  res.json({ message: 'Entrée supprimée' })
 })
 
 export default router
