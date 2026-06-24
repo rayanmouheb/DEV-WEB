@@ -1,16 +1,17 @@
 import { Router } from 'express'
-import db from '../database/db.js'
+import pool from '../database/db.js'
 
 const router = Router()
 
-function computeRisk(company_id) {
-  const assets = db.prepare('SELECT * FROM assets WHERE company_id = ?').all(company_id)
-  const vulns = db.prepare(`
-    SELECT v.*, a.is_internet_exposed
-    FROM vulnerabilities v
-    JOIN assets a ON v.asset_id = a.id
-    WHERE a.company_id = ?
-  `).all(company_id)
+export async function computeRisk(company_id) {
+  const [assets] = await pool.execute('SELECT * FROM assets WHERE company_id = ?', [company_id])
+  const [vulns] = await pool.execute(
+    `SELECT v.*, a.is_internet_exposed
+     FROM vulnerabilities v
+     JOIN assets a ON v.asset_id = a.id
+     WHERE a.company_id = ?`,
+    [company_id]
+  )
 
   let score = 0
   for (const v of vulns) {
@@ -28,47 +29,36 @@ function computeRisk(company_id) {
   else if (score > 20) level = 'eleve'
 
   const byType = {}
-  for (const a of assets) {
-    byType[a.type] = (byType[a.type] ?? 0) + 1
-  }
+  for (const a of assets) byType[a.type] = (byType[a.type] ?? 0) + 1
 
   const criticalityCount = { faible: 0, moyen: 0, eleve: 0 }
   for (const v of vulns) criticalityCount[v.criticality]++
 
-  return {
-    score,
-    level,
-    assetCount: assets.length,
-    vulnCount: vulns.length,
-    exposedCount,
-    byType,
-    criticalityCount,
-  }
+  return { score, level, assetCount: assets.length, vulnCount: vulns.length, exposedCount, byType, criticalityCount }
 }
 
-router.post('/calculate', (req, res) => {
+router.post('/calculate', async (req, res) => {
   const { company_id } = req.body
   if (!company_id) return res.status(400).json({ error: 'company_id requis' })
-  const result = computeRisk(company_id)
-
-  db.prepare(
-    'INSERT INTO risk_history (company_id, score, level, details) VALUES (?,?,?,?)'
-  ).run(company_id, result.score, result.level, JSON.stringify(result))
-
+  const result = await computeRisk(company_id)
+  await pool.execute(
+    'INSERT INTO risk_history (company_id, score, level, details) VALUES (?,?,?,?)',
+    [company_id, result.score, result.level, JSON.stringify(result)]
+  )
   res.json({ company_id, ...result })
 })
 
-router.get('/history/:company_id', (req, res) => {
-  const rows = db.prepare(
-    'SELECT * FROM risk_history WHERE company_id = ? ORDER BY created_at DESC LIMIT 20'
-  ).all(req.params.company_id)
-  res.json(rows.map(r => ({ ...r, details: JSON.parse(r.details) })))
+router.get('/history/:company_id', async (req, res) => {
+  const [rows] = await pool.execute(
+    'SELECT * FROM risk_history WHERE company_id = ? ORDER BY created_at DESC LIMIT 20',
+    [req.params.company_id]
+  )
+  res.json(rows)
 })
 
-router.delete('/history/:id', (req, res) => {
-  db.prepare('DELETE FROM risk_history WHERE id = ?').run(req.params.id)
+router.delete('/history/:id', async (req, res) => {
+  await pool.execute('DELETE FROM risk_history WHERE id = ?', [req.params.id])
   res.json({ message: 'Entrée supprimée' })
 })
 
-export { computeRisk }
 export default router
