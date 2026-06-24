@@ -3,20 +3,16 @@ import { RouterLink, RouterView } from 'vue-router'
 import { useThemeStore } from './stores/theme.js'
 import { useAuthStore } from './stores/auth.js'
 import { useCompanyStore } from './stores/company.js'
-import { useNotificationsStore } from './stores/notifications.js'
-import NotificationToast from './components/NotificationToast.vue'
 import { onMounted } from 'vue'
 
 const theme = useThemeStore()
 const auth = useAuthStore()
 const company = useCompanyStore()
-const notif = useNotificationsStore()
 
 onMounted(() => company.fetchAll())
 
 function handleLogout() {
   auth.logout()
-  notif.success('Déconnexion réussie')
 }
 </script>
 
@@ -52,7 +48,6 @@ function handleLogout() {
       <RouterView />
     </main>
 
-    <NotificationToast />
   </div>
 </template>
 

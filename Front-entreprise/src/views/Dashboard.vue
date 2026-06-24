@@ -1,18 +1,10 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { Bar, Doughnut } from 'vue-chartjs'
-import {
-  Chart as ChartJS,
-  CategoryScale, LinearScale, BarElement, ArcElement,
-  Title, Tooltip, Legend
-} from 'chart.js'
+import { onMounted, computed } from 'vue'
 import { useCompanyStore } from '../stores/company.js'
 import { useAssetsStore } from '../stores/assets.js'
 import { useVulnerabilitiesStore } from '../stores/vulnerabilities.js'
 import { useRiskStore } from '../stores/risk.js'
 import RiskBadge from '../components/RiskBadge.vue'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
 
 const company = useCompanyStore()
 const assets = useAssetsStore()
@@ -38,31 +30,32 @@ const TYPE_LABELS = {
   poste_utilisateur: 'Poste', routeur: 'Routeur',
   pare_feu: 'Pare-feu', application_metier: 'App métier',
 }
+const TYPE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#6366f1']
 
-const assetTypeData = computed(() => {
+const assetTypeBars = computed(() => {
   const counts = {}
-  for (const a of assets.list) counts[TYPE_LABELS[a.type] ?? a.type] = (counts[TYPE_LABELS[a.type] ?? a.type] ?? 0) + 1
-  return {
-    labels: Object.keys(counts),
-    datasets: [{
-      label: 'Actifs par type',
-      data: Object.values(counts),
-      backgroundColor: ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#6366f1'],
-      borderRadius: 6,
-    }],
+  for (const a of assets.list) {
+    const label = TYPE_LABELS[a.type] ?? a.type
+    counts[label] = (counts[label] ?? 0) + 1
   }
+  const max = Math.max(...Object.values(counts), 1)
+  return Object.entries(counts).map(([label, count], i) => ({
+    label,
+    count,
+    width: Math.round((count / max) * 100),
+    color: TYPE_COLORS[i % TYPE_COLORS.length],
+  }))
 })
 
-const vulnCritData = computed(() => {
+const vulnBars = computed(() => {
   const c = risk.current?.criticalityCount ?? { faible: 0, moyen: 0, eleve: 0 }
-  return {
-    labels: ['Faible', 'Moyen', 'Élevé'],
-    datasets: [{ data: [c.faible, c.moyen, c.eleve], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }],
-  }
+  const total = c.faible + c.moyen + c.eleve || 1
+  return [
+    { label: 'Élevé', count: c.eleve, width: Math.round((c.eleve / total) * 100), color: '#ef4444' },
+    { label: 'Moyen', count: c.moyen, width: Math.round((c.moyen / total) * 100), color: '#f59e0b' },
+    { label: 'Faible', count: c.faible, width: Math.round((c.faible / total) * 100), color: '#10b981' },
+  ]
 })
-
-const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-const barOptions = { ...chartOptions, plugins: { ...chartOptions.plugins, legend: { display: false } } }
 
 const riskColor = computed(() => ({
   eleve: '#ef4444', moyen: '#f59e0b', faible: '#10b981', none: '#94a3b8',
@@ -134,25 +127,37 @@ const riskPercent = computed(() => {
       </div>
     </div>
 
-    <!-- Charts -->
+    <!-- Charts CSS -->
     <div class="grid-2 mt-16">
       <div class="card">
         <h3>Répartition des actifs par type</h3>
-        <div class="chart-container mt-16">
-          <Bar v-if="assets.list.length" :data="assetTypeData" :options="barOptions" />
-          <div v-else class="empty-state">Aucun actif</div>
+        <div class="css-bars mt-16">
+          <div v-if="!assetTypeBars.length" class="empty-state">Aucun actif</div>
+          <div v-for="bar in assetTypeBars" :key="bar.label" class="css-bar-row">
+            <span class="css-bar-label">{{ bar.label }}</span>
+            <div class="css-bar-track">
+              <div class="css-bar-fill" :style="{ width: bar.width + '%', background: bar.color }"></div>
+            </div>
+            <span class="css-bar-count">{{ bar.count }}</span>
+          </div>
         </div>
       </div>
       <div class="card">
         <h3>Répartition des vulnérabilités</h3>
-        <div class="chart-container mt-16">
-          <Doughnut v-if="vulns.list.length" :data="vulnCritData" :options="chartOptions" />
-          <div v-else class="empty-state">Aucune vulnérabilité</div>
+        <div class="css-bars mt-16">
+          <div v-if="!vulns.list.length" class="empty-state">Aucune vulnérabilité</div>
+          <div v-for="bar in vulnBars" :key="bar.label" class="css-bar-row">
+            <span class="css-bar-label">{{ bar.label }}</span>
+            <div class="css-bar-track">
+              <div class="css-bar-fill" :style="{ width: bar.width + '%', background: bar.color }"></div>
+            </div>
+            <span class="css-bar-count">{{ bar.count }}</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Histogramme des actifs exposés vs internes -->
+    <!-- Exposition Internet -->
     <div class="card mt-16">
       <h3>Exposition Internet des actifs</h3>
       <div class="exposure-bars mt-16">
@@ -184,7 +189,6 @@ const riskPercent = computed(() => {
 
 <style scoped>
 .mb-16 { margin-bottom: 16px; }
-.chart-container { height: 220px; }
 
 .risk-bar-bg { height: 14px; background: var(--color-border); border-radius: 999px; overflow: hidden; }
 .risk-bar-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
@@ -192,6 +196,13 @@ const riskPercent = computed(() => {
 
 .risk-breakdown { display: flex; gap: 20px; }
 .breakdown-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-text-muted); }
+
+.css-bars { display: flex; flex-direction: column; gap: 10px; }
+.css-bar-row { display: flex; align-items: center; gap: 10px; }
+.css-bar-label { width: 90px; font-size: 13px; color: var(--color-text-muted); flex-shrink: 0; }
+.css-bar-track { flex: 1; height: 20px; background: var(--color-border); border-radius: 4px; overflow: hidden; }
+.css-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.css-bar-count { width: 24px; text-align: right; font-size: 13px; font-weight: 600; flex-shrink: 0; }
 
 .exposure-bars { display: flex; flex-direction: column; gap: 12px; }
 .exposure-row { display: flex; align-items: center; gap: 12px; }
@@ -201,5 +212,4 @@ const riskPercent = computed(() => {
 .exposure-fill.exposed { background: #ef4444; }
 .exposure-fill.internal { background: #10b981; }
 .exposure-count { width: 30px; text-align: right; font-size: 13px; font-weight: 600; }
-
 </style>
