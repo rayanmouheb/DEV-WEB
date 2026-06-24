@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-
+import HomeView from '../views/HomeView.vue'
 import CompanyView from '../views/CompagnyView.vue'
 import AssetsView from '../views/Actif.vue'
 import VulnerabilitiesView from '../views/Vulnerabilité.vue'
@@ -9,6 +9,11 @@ import ReportView from '../views/Report.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    {
+      path: '/',
+      name: 'home',
+      component: HomeView
+    },
     {
       path: '/company',
       name: 'company',
