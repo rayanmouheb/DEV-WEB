@@ -1,44 +1,44 @@
 import { Router } from 'express'
-import pool from '../bdd.js'
+import db from '../database/db.js'
 
 const router = Router()
 
-// Récupère toutes les entreprises
-router.get('/', async (_req, res) => {
-  const [rows] = await pool.query('SELECT * FROM Compagny')
-  res.json(rows)
+router.get('/', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM company').all()
+  res.json(rows.map(r => ({ ...r, exposed_services: JSON.parse(r.exposed_services) })))
 })
 
-// Récupère une entreprise par son id
-router.get('/:id', async (req, res) => {
-  const [rows] = await pool.query('SELECT * FROM Compagny WHERE id = ?', [req.params.id])
-  if (rows.length === 0) return res.status(404).json({ error: 'Entreprise non trouvée' })
-  res.json(rows[0])
+router.get('/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM company WHERE id = ?').get(req.params.id)
+  if (!row) return res.status(404).json({ error: 'Entreprise non trouvée' })
+  res.json({ ...row, exposed_services: JSON.parse(row.exposed_services) })
 })
 
-// Crée une entreprise
-router.post('/', async (req, res) => {
-  const { nom, Secteur, NbEmploye, NbServeur, NbPosteClient, Services } = req.body
-  const [result] = await pool.query(
-    'INSERT INTO Compagny (nom, Secteur, NbEmploye, NbServeur, NbPosteClient, Services) VALUES (?, ?, ?, ?, ?, ?)',
-    [nom, Secteur, NbEmploye, NbServeur, NbPosteClient, Services]
-  )
-  res.status(201).json({ id: result.insertId, ...req.body })
+router.post('/', (req, res) => {
+  const { name, sector, employee_count, server_count, client_count, exposed_services } = req.body
+  if (!name || !sector) return res.status(400).json({ error: 'name et sector sont requis' })
+  const services = JSON.stringify(Array.isArray(exposed_services) ? exposed_services : [])
+  const { lastInsertRowid } = db.prepare(
+    'INSERT INTO company (name, sector, employee_count, server_count, client_count, exposed_services) VALUES (?,?,?,?,?,?)'
+  ).run(name, sector, employee_count ?? 0, server_count ?? 0, client_count ?? 0, services)
+  const created = db.prepare('SELECT * FROM company WHERE id = ?').get(lastInsertRowid)
+  res.status(201).json({ ...created, exposed_services: JSON.parse(created.exposed_services) })
 })
 
-// Modifie une entreprise
-router.put('/:id', async (req, res) => {
-  const { nom, Secteur, NbEmploye, NbServeur, NbPosteClient, Services } = req.body
-  await pool.query(
-    'UPDATE Compagny SET nom=?, Secteur=?, NbEmploye=?, NbServeur=?, NbPosteClient=?, Services=? WHERE id=?',
-    [nom, Secteur, NbEmploye, NbServeur, NbPosteClient, Services, req.params.id]
-  )
-  res.json({ id: req.params.id, ...req.body })
+router.put('/:id', (req, res) => {
+  const { name, sector, employee_count, server_count, client_count, exposed_services } = req.body
+  if (!name || !sector) return res.status(400).json({ error: 'name et sector sont requis' })
+  const services = JSON.stringify(Array.isArray(exposed_services) ? exposed_services : [])
+  const info = db.prepare(
+    'UPDATE company SET name=?, sector=?, employee_count=?, server_count=?, client_count=?, exposed_services=? WHERE id=?'
+  ).run(name, sector, employee_count ?? 0, server_count ?? 0, client_count ?? 0, services, req.params.id)
+  if (info.changes === 0) return res.status(404).json({ error: 'Entreprise non trouvée' })
+  const updated = db.prepare('SELECT * FROM company WHERE id = ?').get(req.params.id)
+  res.json({ ...updated, exposed_services: JSON.parse(updated.exposed_services) })
 })
 
-// Supprime une entreprise
-router.delete('/:id', async (req, res) => {
-  await pool.query('DELETE FROM Compagny WHERE id = ?', [req.params.id])
+router.delete('/:id', (req, res) => {
+  db.prepare('DELETE FROM company WHERE id = ?').run(req.params.id)
   res.json({ message: 'Entreprise supprimée' })
 })
 
