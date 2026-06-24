@@ -148,7 +148,7 @@ const sectorRisk = computed(() => {
       <div class="card mt-16">
         <h3>Informations générales</h3>
         <div class="info-grid mt-16">
-          <div><span class="info-label">Créée le</span><span>{{ new Date(store.selected.created_at).toLocaleDateString('fr-FR') }}</span></div>
+          <div><span class="info-label">Créée le</span><span>{{ store.selected.created_at ? new Date(store.selected.created_at).toLocaleDateString('fr-FR') : '—' }}</span></div>
           <div><span class="info-label">ID</span><span>#{{ store.selected.id }}</span></div>
         </div>
       </div>

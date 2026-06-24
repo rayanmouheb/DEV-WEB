@@ -4,6 +4,7 @@ import { useThemeStore } from './stores/theme.js'
 import { useAuthStore } from './stores/auth.js'
 import { useCompanyStore } from './stores/company.js'
 import { onMounted } from 'vue'
+import NotificationToast from './components/NotificationToast.vue'
 
 const theme = useThemeStore()
 const auth = useAuthStore()
@@ -48,6 +49,7 @@ function handleLogout() {
       <RouterView />
     </main>
 
+    <NotificationToast />
   </div>
 </template>
 
